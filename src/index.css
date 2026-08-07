@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-coral: #E8623D;
+    --color-coral-hover: #D54F2B;
+    --color-coral-light: #FFF0EB;
+    --color-navy: #131D21;
+    --color-bg: #F7F7F5;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-navy);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+.bg-coral {
+  background-color: var(--color-coral);
+}
+
+.bg-coral-hover:hover {
+  background-color: var(--color-coral-hover);
+}
+
+.bg-coral-light {
+  background-color: var(--color-coral-light);
+}
+
+.text-coral {
+  color: var(--color-coral);
+}
+
+.border-coral {
+  border-color: var(--color-coral);
+}
+
+.text-navy {
+  color: var(--color-navy);
+}
+
+/* Custom scrollbar for chat assistant */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
