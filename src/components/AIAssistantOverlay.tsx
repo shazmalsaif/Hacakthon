@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send, Plus, Check, Settings, Key } from 'lucide-react';
-import { PRODUCTS, type Product } from '../data/products';
+import { Sparkles, X, Send, Plus, Check } from 'lucide-react';
+import type { Product } from '../data/products';
 import { useCart } from '../context/CartContext';
-import { askHuggingFaceAssistant } from '../services/huggingface';
+import { askRAG } from '../services/Ragapi';
 
 interface Message {
   id: string;
@@ -18,24 +18,25 @@ interface AIAssistantOverlayProps {
   onToggle: () => void;
 }
 
-export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({ isOpen, onClose, onToggle }) => {
+export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({
+  isOpen,
+  onClose,
+  onToggle,
+}) => {
   const { addToCart } = useCart();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'msg-welcome',
       sender: 'assistant',
       text: "Hi! Tell me what you're looking for and I'll help you find it.",
-      timestamp: new Date()
-    }
+      timestamp: new Date(),
+    },
   ]);
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [addedIds, setAddedIds] = useState<Record<string, boolean>>({});
-  const [apiKey, setApiKey] = useState<string>(() => {
-    return import.meta.env.VITE_HUGGINGFACE_API_KEY || localStorage.getItem('HUGGINGFACE_API_KEY') || '';
-  });
-  const [showSettings, setShowSettings] = useState(false);
-  const [tempKeyInput, setTempKeyInput] = useState(apiKey);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,64 +45,66 @@ export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({ isOpen, 
     }
   }, [messages, isOpen]);
 
-  const handleSaveApiKey = () => {
-    const trimmed = tempKeyInput.trim();
-    setApiKey(trimmed);
-    localStorage.setItem('HUGGINGFACE_API_KEY', trimmed);
-    setShowSettings(false);
-  };
-
   const handleAddProduct = (product: Product) => {
     addToCart(product, 1);
-    setAddedIds(prev => ({ ...prev, [product.id]: true }));
+
+    setAddedIds((prev) => ({
+      ...prev,
+      [product.id]: true,
+    }));
+
     setTimeout(() => {
-      setAddedIds(prev => ({ ...prev, [product.id]: false }));
+      setAddedIds((prev) => ({
+        ...prev,
+        [product.id]: false,
+      }));
     }, 2000);
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-
     const userMsgText = input.trim();
+
+    if (!userMsgText || isLoading) {
+      return;
+    }
+
     setInput('');
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       sender: 'user',
       text: userMsgText,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
-      // Call Hugging Face Service with DeepSeek-V4-Pro model
-      const result = await askHuggingFaceAssistant(userMsgText, PRODUCTS, apiKey);
+      // The frontend sends only the user's message.
+      // Product data and the Hugging Face API key stay in the backend.
+      const result = await askRAG(userMsgText);
 
-      const recProducts = PRODUCTS.filter(p => result.recommendedProductIds.includes(p.id));
-
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         {
           id: `asst-${Date.now()}`,
           sender: 'assistant',
-          text: result.text,
-          recommendedProducts: recProducts.length > 0 ? recProducts : undefined,
-          timestamp: new Date()
-        }
+          text: result.answer,
+          timestamp: new Date(),
+        },
       ]);
-    } catch (err) {
-      console.error('Hugging Face Inference Error:', err);
-      // Requirement #6: Graceful error fallback message
-      setMessages(prev => [
+    } catch (error) {
+      console.error('RAG API Error:', error);
+
+      setMessages((prev) => [
         ...prev,
         {
           id: `asst-${Date.now()}`,
           sender: 'assistant',
-          text: "Sorry, I'm having trouble right now — try again in a moment.",
-          timestamp: new Date()
-        }
+          text: "Sorry, I'm having trouble connecting to the AI assistant right now. Please try again.",
+          timestamp: new Date(),
+        },
       ]);
     } finally {
       setIsLoading(false);
@@ -136,66 +139,38 @@ export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({ isOpen, 
               <div className="w-8 h-8 rounded-full bg-[#E8623D] flex items-center justify-center text-white">
                 <Sparkles className="w-4 h-4" />
               </div>
+
               <div>
-                <h3 className="font-bold text-sm leading-none text-white">AI Assistant</h3>
+                <h3 className="font-bold text-sm leading-none text-white">
+                  AI Assistant
+                </h3>
+
                 <div className="flex items-center space-x-1.5 mt-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-xs text-gray-300">Online • DeepSeek-V4-Pro</span>
+                  <span className="text-xs text-gray-300">
+                    Online • RAG Assistant
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className="p-1.5 hover:bg-slate-800 rounded-lg text-gray-400 hover:text-white transition-colors"
-                title="Hugging Face API Key Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </button>
-              <button
-                onClick={onClose}
-                className="p-1.5 hover:bg-slate-800 rounded-lg text-gray-400 hover:text-white transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-slate-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+              aria-label="Close AI Assistant"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-
-          {/* Settings Drawer */}
-          {showSettings && (
-            <div className="bg-slate-800 text-white px-4 py-3 border-b border-slate-700 text-xs">
-              <div className="flex items-center gap-1.5 text-coral font-semibold mb-1">
-                <Key className="w-3.5 h-3.5 text-[#E8623D]" />
-                <span>Hugging Face API Key</span>
-              </div>
-              <p className="text-gray-300 text-[11px] mb-2">
-                Uses VITE_HUGGINGFACE_API_KEY from .env or enter custom key:
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  placeholder="hf_..."
-                  value={tempKeyInput}
-                  onChange={(e) => setTempKeyInput(e.target.value)}
-                  className="flex-1 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-white text-xs focus:outline-none focus:border-[#E8623D]"
-                />
-                <button
-                  onClick={handleSaveApiKey}
-                  className="px-3 py-1.5 bg-[#E8623D] hover:bg-[#D54F2B] text-white font-medium rounded text-xs transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Message Thread */}
           <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50/50 custom-scrollbar">
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                className={`flex flex-col ${
+                  msg.sender === 'user' ? 'items-end' : 'items-start'
+                }`}
               >
                 <div
                   className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
@@ -207,50 +182,61 @@ export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({ isOpen, 
                   {msg.text}
                 </div>
 
-                {/* Render Inline Product Recommendation Cards */}
-                {msg.recommendedProducts && msg.recommendedProducts.length > 0 && (
-                  <div className="mt-3 space-y-2.5 w-full max-w-[90%]">
-                    {msg.recommendedProducts.map((product) => (
-                      <div
-                        key={product.id}
-                        className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between gap-3 hover:border-[#E8623D]/40 transition-colors"
-                      >
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-12 h-12 rounded-lg object-cover bg-gray-100 flex-shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-xs font-bold text-slate-900 truncate">{product.name}</h4>
-                          <p className="text-xs font-semibold text-[#E8623D]">${product.price.toFixed(2)}</p>
-                        </div>
-                        <button
-                          onClick={() => handleAddProduct(product)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
-                            addedIds[product.id]
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-[#FFF0EB] text-[#E8623D] hover:bg-[#E8623D] hover:text-white'
-                          }`}
+                {/* Product cards can still be rendered if the backend
+                    is later extended to return recommended product IDs. */}
+                {msg.recommendedProducts &&
+                  msg.recommendedProducts.length > 0 && (
+                    <div className="mt-3 space-y-2.5 w-full max-w-[90%]">
+                      {msg.recommendedProducts.map((product) => (
+                        <div
+                          key={product.id}
+                          className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between gap-3 hover:border-[#E8623D]/40 transition-colors"
                         >
-                          {addedIds[product.id] ? (
-                            <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Added</span>
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Add</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-12 h-12 rounded-lg object-cover bg-gray-100 flex-shrink-0"
+                          />
+
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-bold text-slate-900 truncate">
+                              {product.name}
+                            </h4>
+                            <p className="text-xs font-semibold text-[#E8623D]">
+                              ${product.price.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => handleAddProduct(product)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all ${
+                              addedIds[product.id]
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-[#FFF0EB] text-[#E8623D] hover:bg-[#E8623D] hover:text-white'
+                            }`}
+                          >
+                            {addedIds[product.id] ? (
+                              <>
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Added</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>Add</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                 <span className="text-[10px] text-gray-400 mt-1 px-1">
-                  {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {msg.timestamp.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </span>
               </div>
             ))}
@@ -258,7 +244,7 @@ export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({ isOpen, 
             {isLoading && (
               <div className="flex items-center space-x-2 text-gray-400 text-xs py-2">
                 <Sparkles className="w-4 h-4 text-[#E8623D] animate-spin" />
-                <span>AI is searching DeepSeek for matching gadgets...</span>
+                <span>AI is searching the store knowledge base...</span>
               </div>
             )}
 
@@ -272,14 +258,20 @@ export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({ isOpen, 
               placeholder="e.g. 'something for hydration' or 'desk light'..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  sendMessage();
+                }
+              }}
               disabled={isLoading}
               className="flex-1 px-3.5 py-2 bg-gray-100 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#E8623D]/30 border border-transparent focus:border-[#E8623D] transition-all"
             />
+
             <button
               onClick={sendMessage}
               disabled={!input.trim() || isLoading}
               className="p-2.5 bg-[#E8623D] text-white rounded-xl hover:bg-[#D54F2B] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="Send message"
             >
               <Send className="w-4 h-4" />
             </button>
