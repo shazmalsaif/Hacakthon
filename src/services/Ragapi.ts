@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = "https://store-rag-assistantbackend.vercel.app";
 
 export interface ChatResponse {
   answer: string;
@@ -8,7 +8,7 @@ export async function askRAG(
   message: string,
   threadId: string = "default"
 ): Promise<ChatResponse> {
-  const response = await fetch(`${API_URL}/chat`, {
+  const response = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -19,7 +19,7 @@ export async function askRAG(
     }),
   });
 
-   if (!response.ok) {
+  if (!response.ok) {
     const errorText = await response.text();
     throw new Error(
       `RAG API error ${response.status}: ${errorText}`
