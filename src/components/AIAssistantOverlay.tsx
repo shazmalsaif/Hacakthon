@@ -37,6 +37,13 @@ export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [addedIds, setAddedIds] = useState<Record<string, boolean>>({});
+  const [threadId] = useState<string>(() => {
+    const existing = sessionStorage.getItem('rag_thread_id');
+    if (existing) return existing;
+    const id = crypto.randomUUID();
+    sessionStorage.setItem('rag_thread_id', id);
+    return id;
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -76,14 +83,14 @@ export const AIAssistantOverlay: React.FC<AIAssistantOverlayProps> = ({
       text: userMsgText,
       timestamp: new Date(),
     };
-
+  
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
       // The frontend sends only the user's message.
       // Product data and the Hugging Face API key stay in the backend.
-      const result = await askRAG(userMsgText);
+      const result = await askRAG(userMsgText, threadId);
 
       setMessages((prev) => [
         ...prev,
